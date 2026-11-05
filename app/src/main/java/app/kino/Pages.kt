@@ -318,10 +318,20 @@ class LibraryPage(private val a: MainActivity) {
             if (list.isNotEmpty()) {
                 downloads.addView(a.sectionTitle("Downloads"))
                 list.forEach { d ->
+                    // The whole card plays (or opens its options while it's still going); focus draws Kino's white ring.
+                    val r = a.dp(Shape.M).toFloat()
                     val row = LinearLayout(a).apply {
                         gravity = Gravity.CENTER_VERTICAL
                         setPadding(a.dp(10), a.dp(10), a.dp(10), a.dp(10))
-                        background = rounded(C.container, a.dp(Shape.M).toFloat())
+                        isFocusable = true; isClickable = true
+                        background = android.graphics.drawable.StateListDrawable().apply {
+                            addState(intArrayOf(android.R.attr.state_focused), rounded(C.containerHigh, r, a.dp(2), C.onSurface))
+                            addState(intArrayOf(android.R.attr.state_pressed), rounded(C.containerHigh, r))
+                            addState(intArrayOf(), rounded(C.container, r))
+                        }
+                        contentDescription = d.label
+                        setOnClickListener { if (d.finished) a.playDownload(d) else downloadSheet(d) }
+                        setOnLongClickListener { downloadSheet(d); true }
                     }
                     val art = FrameLayout(a).apply {
                         background = rounded(C.containerHigh, a.dp(Shape.M).toFloat())
@@ -331,6 +341,9 @@ class LibraryPage(private val a: MainActivity) {
                             val episode = d.item.videos.firstOrNull { it.id == d.videoId }
                             Images.load(this, episode?.thumbnail ?: d.item.backgroundOrHub ?: d.item.posterOrHub, a.dp(160))
                         }, FrameLayout.LayoutParams(-1, -1))
+                        // Finished ones carry a small white badge: this plays without the internet.
+                        if (d.finished) addView(a.pill("Offline", solid = true), FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM or Gravity.START)
+                            .apply { setMargins(a.dp(6), 0, 0, a.dp(6)) })
                     }
                     row.addView(art, lp(a.dp(if (a.isTv) 160 else 112), a.dp(if (a.isTv) 90 else 72)))
                     val sub = a.text(T.META, C.variant, lines = 2)
@@ -344,12 +357,20 @@ class LibraryPage(private val a: MainActivity) {
                         addView(sub, lp().apply { topMargin = a.dp(6) })
                         addView(bar, lp(-1, a.dp(4)).apply { topMargin = a.dp(8) })
                     }, lp(0, -2).apply { weight = 1f })
-                    if (d.finished) row.addView(a.button(if (a.resources.configuration.screenWidthDp >= 600 || a.isTv) "Play" else "", R.drawable.ic_play) { a.playDownload(d) }.apply {
-                        contentDescription = "Play ${d.label} offline"
-                        if (text.isEmpty()) { setPadding(a.dp(12), a.dp(10), a.dp(12), a.dp(10)); iconPadding = 0 }
-                    }, lp(-2, -2))
-                    row.addView(a.button("⋮") { downloadSheet(d) }.apply { contentDescription = "Options for ${d.label}"; setPadding(0, 0, 0, 0) },
-                        lp(a.dp(48), -2).apply { marginStart = a.dp(8) })
+                    // Touch gets a play icon and options; on TV the card itself is the target and a long press has the options.
+                    if (!a.isTv) {
+                        if (d.finished) row.addView(ImageView(a).apply {
+                            setImageResource(R.drawable.ic_play); setColorFilter(C.onPrimary)
+                            background = rounded(C.onSurface, a.dp(22).toFloat()); setPadding(a.dp(10), a.dp(10), a.dp(10), a.dp(10))
+                            contentDescription = "Play ${d.label} offline"; setOnClickListener { a.playDownload(d) }
+                        }, lp(a.dp(44), a.dp(44)))
+                        row.addView(ImageView(a).apply {
+                            setImageResource(R.drawable.ic_more); setColorFilter(C.variant)
+                            setPadding(a.dp(10), a.dp(10), a.dp(10), a.dp(10))
+                            background = android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(C.alpha(C.onSurface, 0.12f)), null, null)
+                            contentDescription = "Options for ${d.label}"; setOnClickListener { downloadSheet(d) }
+                        }, lp(a.dp(44), a.dp(44)).apply { marginStart = a.dp(4) })
+                    }
                     downloads.addView(row, lp(-1, -2).apply { bottomMargin = a.dp(10) })
                     rows[d.id] = sub to bar
                 }
@@ -381,6 +402,9 @@ class LibraryPage(private val a: MainActivity) {
             lp().apply { setMargins(pad, 0, pad, a.dp(10)) })
         shell.body.addView(a.button(if (d.finished) "Delete download" else "Cancel download") {
             shell.dialog.dismiss(); Downloads.delete(a, d.id); refresh()
+        }.apply {
+            // Destructive, so red at rest; focus still inverts to ground ink on white.
+            setTextColor(android.content.res.ColorStateList(arrayOf(intArrayOf(android.R.attr.state_focused), intArrayOf()), intArrayOf(C.onPrimary, C.danger)))
         }, lp().apply { setMargins(pad, 0, pad, 0) })
         shell.dialog.show()
     }
