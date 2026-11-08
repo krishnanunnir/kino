@@ -214,7 +214,15 @@ class RowsAdapter(private val host: PosterHost, private val header: View? = null
             layoutParams = RecyclerView.LayoutParams(-1, -2)
         }
         box.addView(ctx.text(T.ROW, C.alpha(C.onSurface, 0.9f)).apply { setPadding(edge, ctx.dp(if (tv) 10 else 18), edge, ctx.dp(if (tv) 4 else 4)) })
-        box.addView(RecyclerView(ctx).apply {
+        box.addView(object : RecyclerView(ctx) {
+            // Focus entering the row (Up/Down from another row) goes to the card that leads it. Android's default hands
+            // FOCUS_UP to the last attached card, and the row then slid all the way to it.
+            override fun onRequestFocusInDescendants(direction: Int, rect: android.graphics.Rect?): Boolean {
+                val lm = layoutManager as LinearLayoutManager
+                val lead = lm.findFirstCompletelyVisibleItemPosition().takeIf { it >= 0 } ?: lm.findFirstVisibleItemPosition()
+                return lm.findViewByPosition(lead)?.requestFocus(direction, rect) ?: super.onRequestFocusInDescendants(direction, rect)
+            }
+        }.apply {
             layoutManager = RowLayout(ctx)
             setRecycledViewPool(pool)
             // TV: cards that slid past the row's start are hidden, so the focused one always leads.
