@@ -215,13 +215,20 @@ class RowsAdapter(private val host: PosterHost, private val header: View? = null
         }
         box.addView(ctx.text(T.ROW, C.alpha(C.onSurface, 0.9f)).apply { setPadding(edge, ctx.dp(if (tv) 10 else 18), edge, ctx.dp(if (tv) 4 else 4)) })
         box.addView(object : RecyclerView(ctx) {
-            // Focus entering the row (Up/Down from another row) goes to the card that leads it. Android's default hands
-            // FOCUS_UP to the last attached card, and the row then slid all the way to it.
-            override fun onRequestFocusInDescendants(direction: Int, rect: android.graphics.Rect?): Boolean {
+            // Focus entering the row (from another row or the menu) goes to the card that leads it; otherwise Android
+            // picks the nearest card, or for a rebuilt row the last one, and the row slides to it.
+            private fun lead(): View? {
                 val lm = layoutManager as LinearLayoutManager
-                val lead = lm.findFirstCompletelyVisibleItemPosition().takeIf { it >= 0 } ?: lm.findFirstVisibleItemPosition()
-                return lm.findViewByPosition(lead)?.requestFocus(direction, rect) ?: super.onRequestFocusInDescendants(direction, rect)
+                return lm.findViewByPosition(lm.findFirstCompletelyVisibleItemPosition().takeIf { it >= 0 } ?: lm.findFirstVisibleItemPosition())
             }
+            // Arriving by focus search (the row is on screen): offer only the leading card.
+            override fun addFocusables(views: ArrayList<View>, direction: Int, mode: Int) {
+                val l = if (hasFocus()) null else lead()
+                if (l != null) l.addFocusables(views, direction, mode) else super.addFocusables(views, direction, mode)
+            }
+            // Arriving by requestFocus (the list rebuilt the row off screen).
+            override fun onRequestFocusInDescendants(direction: Int, rect: android.graphics.Rect?) =
+                lead()?.requestFocus(direction, rect) ?: super.onRequestFocusInDescendants(direction, rect)
         }.apply {
             layoutManager = RowLayout(ctx)
             setRecycledViewPool(pool)
