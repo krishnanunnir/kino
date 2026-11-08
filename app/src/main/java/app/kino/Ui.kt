@@ -67,7 +67,8 @@ private val SELECTED = intArrayOf(android.R.attr.state_selected)
 
 /** TV, or anything without a touchscreen (TV boxes, desktops with a remote): drive the UI by focus. */
 val Context.isTv: Boolean
-    get() = (getSystemService(Context.UI_MODE_SERVICE) as UiModeManager).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
+    // Application context: on Android 14 a UiModeManager keeps its Context forever, leaking every Activity that asks.
+    get() = (applicationContext.getSystemService(Context.UI_MODE_SERVICE) as UiModeManager).currentModeType == Configuration.UI_MODE_TYPE_TELEVISION ||
         !packageManager.hasSystemFeature(PackageManager.FEATURE_TOUCHSCREEN)
 
 fun Context.dp(v: Number) = (v.toFloat() * resources.displayMetrics.density).toInt()
